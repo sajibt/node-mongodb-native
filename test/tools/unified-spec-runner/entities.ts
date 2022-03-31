@@ -160,8 +160,13 @@ export class UnifiedMongoClient extends MongoClient {
 
   // NOTE: pushCmapEvent must be an arrow function
   pushCmapEvent: (e: CmapEvent) => void = e => {
-    if (this.credentials && this._initialPingCmapEvents.length !== 2) {
-      if (e instanceof ConnectionCheckedOutEvent || e instanceof ConnectionCheckedInEvent) {
+    const pingCount = process.env.LOAD_BALANCER ? 2 : 1;
+    if (this.credentials && this._initialPingCmapEvents.length !== pingCount) {
+      if (
+        e instanceof ConnectionCheckedOutEvent ||
+        e instanceof ConnectionCheckedInEvent ||
+        e instanceof ConnectionCheckOutStartedEvent
+      ) {
         this._initialPingCmapEvents.push(e);
         return;
       }
