@@ -144,12 +144,12 @@ describe('listDatabases() authorizedDatabases flag', function () {
 });
 
 const testSuite = new UnifiedTestSuiteBuilder('listDatabases with comment option')
+  .createEntities(UnifiedTestSuiteBuilder.defaultEntities)
   .initialData({
-    collectionName: 'coll0',
-    databaseName: '',
+    collectionName: 'collection0',
+    databaseName: 'database0',
     documents: [{ _id: 1, x: 11 }]
   })
-  .databaseName('listDatabases-with-falsy-values')
   .test(
     new TestBuilder('listDatabases should not send comment for server versions < 4.4')
       .runOnRequirement({ maxServerVersion: '4.3.99' })
@@ -233,6 +233,6 @@ const testSuite = new UnifiedTestSuiteBuilder('listDatabases with comment option
   )
   .toJSON();
 
-describe('listDatabases w/ comment option', () => {
+describe('listDatabases with comment option', () => {
   runUnifiedSuite([testSuite]);
 });

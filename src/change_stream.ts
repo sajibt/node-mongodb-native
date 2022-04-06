@@ -1,3 +1,4 @@
+import type { Long } from 'bson';
 import Denque = require('denque');
 import type { Readable } from 'stream';
 
@@ -25,7 +26,7 @@ import type { CollationOptions, OperationParent } from './operations/command';
 import { executeOperation, ExecutionResult } from './operations/execute_operation';
 import type { ReadPreference } from './read_preference';
 import type { Topology } from './sdam/topology';
-import type { ClientSession } from './sessions';
+import type { ClientSession, ServerSessionId } from './sessions';
 import {
   calculateDurationInMs,
   Callback,
@@ -84,16 +85,16 @@ export interface ResumeOptions {
 }
 
 /**
- * Represents the logical starting point for a new or resuming {@link https://docs.mongodb.com/manual/changeStreams/#std-label-change-stream-resume| Change Stream} on the server.
+ * Represents the logical starting point for a new or resuming on the server.
+ * @see https://www.mongodb.com/docs/manual/changeStreams/#std-label-change-stream-resume
  * @public
  */
 export type ResumeToken = unknown;
 
 /**
- * Represents a specific point in time on a server. Can be retrieved by using {@link Db#command}
+ * Represents a specific point in time on a server. Can be retrieved by using `db.command()`
  * @public
- * @remarks
- * See {@link https://docs.mongodb.com/manual/reference/method/db.runCommand/#response| Run Command Response}
+ * @see https://docs.mongodb.com/manual/reference/method/db.runCommand/#response
  */
 export type OperationTime = Timestamp;
 
@@ -107,81 +108,193 @@ export interface PipeOptions {
  * @public
  */
 export interface ChangeStreamOptions extends AggregateOptions {
-  /** Allowed values: 'updateLookup'. When set to 'updateLookup', the change stream will include both a delta describing the changes to the document, as well as a copy of the entire document that was changed from some time after the change occurred. */
+  /**
+   * Allowed values: 'updateLookup'. When set to 'updateLookup',
+   * the change stream will include both a delta describing the changes to the document,
+   * as well as a copy of the entire document that was changed from some time after the change occurred.
+   */
   fullDocument?: string;
   /** The maximum amount of time for the server to wait on new documents to satisfy a change stream query. */
   maxAwaitTimeMS?: number;
-  /** Allows you to start a changeStream after a specified event. See {@link https://docs.mongodb.com/manual/changeStreams/#resumeafter-for-change-streams|ChangeStream documentation}. */
+  /**
+   * Allows you to start a changeStream after a specified event.
+   * @see https://docs.mongodb.com/manual/changeStreams/#resumeafter-for-change-streams
+   */
   resumeAfter?: ResumeToken;
-  /** Similar to resumeAfter, but will allow you to start after an invalidated event. See {@link https://docs.mongodb.com/manual/changeStreams/#startafter-for-change-streams|ChangeStream documentation}. */
+  /**
+   * Similar to resumeAfter, but will allow you to start after an invalidated event.
+   * @see https://docs.mongodb.com/manual/changeStreams/#startafter-for-change-streams
+   */
   startAfter?: ResumeToken;
   /** Will start the changeStream after the specified operationTime. */
   startAtOperationTime?: OperationTime;
-  /** The number of documents to return per batch. See {@link https://docs.mongodb.com/manual/reference/command/aggregate|aggregation documentation}. */
+  /**
+   * The number of documents to return per batch.
+   * @see https://docs.mongodb.com/manual/reference/command/aggregate
+   */
   batchSize?: number;
 }
 
 /** @public */
-export interface ChangeStreamDocument<TSchema extends Document = Document> {
+export interface ChangeStreamFullNameSpace {
+  /** The namespace */
+  ns: { db: string; coll: string };
+}
+
+/** @public */
+export interface ChangeStreamDocumentKey<TSchema extends Document = Document> {
+  /**
+   * For unsharded collections this contains a single field `_id`.
+   * For sharded collections, this will contain all the components of the shard key
+   */
+  documentKey: { _id: InferIdType<TSchema>; [shardKey: string]: any };
+}
+
+/** @public */
+export interface ChangeStreamDocumentCommon {
   /**
    * The id functions as an opaque token for use when resuming an interrupted
    * change stream.
    */
-  _id: InferIdType<TSchema>;
-
+  _id: ResumeToken;
   /**
-   * Describes the type of operation represented in this change notification.
+   * The timestamp from the oplog entry associated with the event.
+   * For events that happened as part of a multi-document transaction, the associated change stream
+   * notifications will have the same clusterTime value, namely the time when the transaction was committed.
+   * On a sharded cluster, events that occur on different shards can have the same clusterTime but be
+   * associated with different transactions or even not be associated with any transaction.
+   * To identify events for a single transaction, you can use the combination of lsid and txnNumber in the change stream event document.
    */
-  operationType:
-    | 'insert'
-    | 'update'
-    | 'replace'
-    | 'delete'
-    | 'invalidate'
-    | 'drop'
-    | 'dropDatabase'
-    | 'rename';
+  clusterTime?: Timestamp;
 
   /**
-   * Contains two fields: “db” and “coll” containing the database and
-   * collection name in which the change happened.
+   * The transaction number.
+   * Only present if the operation is part of a multi-document transaction.
    */
-  ns: { db: string; coll: string };
+  txnNumber?: number | Long;
 
   /**
-   * Only present for ops of type ‘insert’, ‘update’, ‘replace’, and
-   * ‘delete’.
-   *
-   * For unsharded collections this contains a single field, _id, with the
-   * value of the _id of the document updated.  For sharded collections,
-   * this will contain all the components of the shard key in order,
-   * followed by the _id if the _id isn’t part of the shard key.
+   * The identifier for the session associated with the transaction.
+   * Only present if the operation is part of a multi-document transaction.
    */
-  documentKey?: { _id: InferIdType<TSchema> };
+  lsid?: ServerSessionId;
+}
 
-  /**
-   * Only present for ops of type ‘update’.
-   *
-   * Contains a description of updated and removed fields in this
-   * operation.
-   */
-  updateDescription?: UpdateDescription<TSchema>;
+/**
+ * @public
+ * @see https://www.mongodb.com/docs/manual/reference/change-events/#insert-event
+ */
+export interface InsertChangeStreamDocument<TSchema extends Document = Document>
+  extends ChangeStreamDocumentCommon,
+    ChangeStreamDocumentKey<TSchema>,
+    ChangeStreamFullNameSpace {
+  /** Describes the type of operation represented in this change notification */
+  operationType: 'insert';
+  /** This key will contain the document being inserted */
+  fullDocument: TSchema;
+}
 
+/**
+ * @public
+ * @see https://www.mongodb.com/docs/manual/reference/change-events/#update-event
+ */
+export interface UpdateChangeStreamDocument<TSchema extends Document = Document>
+  extends ChangeStreamDocumentCommon,
+    ChangeStreamDocumentKey<TSchema>,
+    ChangeStreamFullNameSpace {
+  /** Describes the type of operation represented in this change notification */
+  operationType: 'update';
   /**
-   * Always present for operations of type ‘insert’ and ‘replace’. Also
-   * present for operations of type ‘update’ if the user has specified ‘updateLookup’
-   * in the ‘fullDocument’ arguments to the ‘$changeStream’ stage.
-   *
-   * For operations of type ‘insert’ and ‘replace’, this key will contain the
-   * document being inserted, or the new version of the document that is replacing
-   * the existing document, respectively.
-   *
-   * For operations of type ‘update’, this key will contain a copy of the full
-   * version of the document from some point after the update occurred. If the
-   * document was deleted since the updated happened, it will be null.
+   * This is only set if `fullDocument` is set to `'updateLookup'`
+   * The fullDocument document represents the most current majority-committed version of the updated document.
+   * The fullDocument document may vary from the document at the time of the update operation depending on the
+   * number of interleaving majority-committed operations that occur between the update operation and the document lookup.
    */
   fullDocument?: TSchema;
+  /** Contains a description of updated and removed fields in this operation */
+  updateDescription: UpdateDescription<TSchema>;
 }
+
+/**
+ * @public
+ * @see https://www.mongodb.com/docs/manual/reference/change-events/#replace-event
+ */
+export interface ReplaceChangeStreamDocument<TSchema extends Document = Document>
+  extends ChangeStreamDocumentCommon,
+    ChangeStreamDocumentKey<TSchema>,
+    ChangeStreamFullNameSpace {
+  /** Describes the type of operation represented in this change notification */
+  operationType: 'replace';
+  /** The fullDocument of a replace event represents the document after the insert of the replacement document */
+  fullDocument: TSchema;
+}
+
+/**
+ * @public
+ * @see https://www.mongodb.com/docs/manual/reference/change-events/#delete-event
+ */
+export interface DeleteChangeStreamDocument<TSchema extends Document = Document>
+  extends ChangeStreamDocumentCommon,
+    ChangeStreamDocumentKey<TSchema>,
+    ChangeStreamFullNameSpace {
+  /** Describes the type of operation represented in this change notification */
+  operationType: 'delete';
+}
+
+/**
+ * @public
+ * @see https://www.mongodb.com/docs/manual/reference/change-events/#drop-event
+ */
+export interface DropChangeStreamDocument
+  extends ChangeStreamDocumentCommon,
+    ChangeStreamFullNameSpace {
+  /** Describes the type of operation represented in this change notification */
+  operationType: 'drop';
+}
+
+/**
+ * @public
+ * @see https://www.mongodb.com/docs/manual/reference/change-events/#rename-event
+ */
+export interface RenameChangeStreamDocument
+  extends ChangeStreamDocumentCommon,
+    ChangeStreamFullNameSpace {
+  /** Describes the type of operation represented in this change notification */
+  operationType: 'rename';
+  /** The new name for the `ns.coll` collection */
+  to: { db: string; coll: string };
+}
+
+/**
+ * @public
+ * @see https://www.mongodb.com/docs/manual/reference/change-events/#dropdatabase-event
+ */
+export interface DropDatabaseChangeStreamDocument extends ChangeStreamDocumentCommon {
+  /** Describes the type of operation represented in this change notification */
+  operationType: 'dropDatabase';
+  /** The database dropped */
+  ns: { db: string };
+}
+
+/**
+ * @public
+ * @see https://www.mongodb.com/docs/manual/reference/change-events/#invalidate-event
+ */
+export interface InvalidateChangeStreamDocument extends ChangeStreamDocumentCommon {
+  /** Describes the type of operation represented in this change notification */
+  operationType: 'invalidate';
+}
+
+/** @public */
+export type ChangeStreamDocument<TSchema extends Document = Document> =
+  | InsertChangeStreamDocument<TSchema>
+  | UpdateChangeStreamDocument<TSchema>
+  | ReplaceChangeStreamDocument<TSchema>
+  | DeleteChangeStreamDocument<TSchema>
+  | DropChangeStreamDocument
+  | RenameChangeStreamDocument
+  | DropDatabaseChangeStreamDocument
+  | InvalidateChangeStreamDocument;
 
 /** @public */
 export interface UpdateDescription<TSchema extends Document = Document> {
@@ -189,12 +302,26 @@ export interface UpdateDescription<TSchema extends Document = Document> {
    * A document containing key:value pairs of names of the fields that were
    * changed, and the new value for those fields.
    */
-  updatedFields: Partial<TSchema>;
+  updatedFields?: Partial<TSchema>;
 
   /**
    * An array of field names that were removed from the document.
    */
-  removedFields: string[];
+  removedFields?: string[];
+
+  /**
+   * An array of documents which record array truncations performed with pipeline-based updates using one or more of the following stages:
+   * - $addFields
+   * - $set
+   * - $replaceRoot
+   * - $replaceWith
+   */
+  truncatedArrays?: Array<{
+    /** The name of the truncated field. */
+    field: string;
+    /** The number of elements in the truncated array. */
+    newSize: number;
+  }>;
 }
 
 /** @public */

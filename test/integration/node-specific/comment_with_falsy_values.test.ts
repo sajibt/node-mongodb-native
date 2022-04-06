@@ -60,15 +60,15 @@ const tests = Array.from(generateTestCombinations()).map(({ name, args }) => {
 
 const testSuite = new UnifiedTestSuiteBuilder('Comment with Falsy Values')
   .runOnRequirement({ minServerVersion: '4.4.0' })
+  .createEntities(UnifiedTestSuiteBuilder.defaultEntities)
   .initialData({
-    collectionName: 'coll0',
+    collectionName: 'collection0',
     databaseName: '',
     documents: [
       { _id: 1, x: 11 },
       { _id: 2, toBeDeleted: true } // This should only be used by the delete test
     ]
   })
-  .databaseName('comment-with-falsy-values')
   .test(tests)
   .toJSON();
 
@@ -161,18 +161,18 @@ const changeStreamTestSuite = new UnifiedTestSuiteBuilder(
   'Change Streams Comment with Falsy Values'
 )
   .schemaVersion('1.0')
+  .createEntities(UnifiedTestSuiteBuilder.defaultEntities)
   .initialData({
-    collectionName: 'coll0',
-    databaseName: '',
+    collectionName: 'collection0',
+    databaseName: 'database0',
     documents: []
   })
-  .databaseName('change-streams-comment-with-falsy-values')
   .runOnRequirement({ minServerVersion: '4.4.0', topologies: ['replicaset', 'sharded-replicaset'] })
   .test(testsForChangeStreamsAggregate)
   .test(testsForGetMore)
   .toJSON();
 
-describe('comment w/ falsy values ', () => {
+describe('comment with falsy values ', () => {
   runUnifiedSuite([testSuite]);
   runUnifiedSuite([changeStreamTestSuite]);
 });

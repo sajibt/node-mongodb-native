@@ -2,12 +2,12 @@ import { runUnifiedSuite } from '../tools/unified-spec-runner/runner';
 import { TestBuilder, UnifiedTestSuiteBuilder } from '../tools/utils';
 
 const testSuite = new UnifiedTestSuiteBuilder('listIndexes with comment option')
+  .createEntities(UnifiedTestSuiteBuilder.defaultEntities)
   .initialData({
-    collectionName: 'coll0',
-    databaseName: '',
+    collectionName: 'collection0',
+    databaseName: 'database0',
     documents: [{ _id: 1, x: 11 }]
   })
-  .databaseName('listIndexes-with-falsy-values')
   .test(
     new TestBuilder('listIndexes should not send comment for server versions < 4.4')
       .runOnRequirement({ maxServerVersion: '4.3.99' })
@@ -87,6 +87,6 @@ const testSuite = new UnifiedTestSuiteBuilder('listIndexes with comment option')
   )
   .toJSON();
 
-describe('listIndexes w/ comment option', () => {
+describe('listIndexes with comment option', () => {
   runUnifiedSuite([testSuite]);
 });

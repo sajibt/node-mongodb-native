@@ -172,12 +172,23 @@ export type {
   ChangeStreamCursor,
   ChangeStreamCursorOptions,
   ChangeStreamDocument,
+  ChangeStreamDocumentCommon,
+  ChangeStreamDocumentKey,
   ChangeStreamEvents,
+  ChangeStreamFullNameSpace,
   ChangeStreamOptions,
+  DeleteChangeStreamDocument,
+  DropChangeStreamDocument,
+  DropDatabaseChangeStreamDocument,
+  InsertChangeStreamDocument,
+  InvalidateChangeStreamDocument,
   OperationTime,
   PipeOptions,
+  RenameChangeStreamDocument,
+  ReplaceChangeStreamDocument,
   ResumeOptions,
   ResumeToken,
+  UpdateChangeStreamDocument,
   UpdateDescription
 } from './change_stream';
 export type {
