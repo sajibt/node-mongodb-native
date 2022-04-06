@@ -1,4 +1,4 @@
-import { expectAssignable, expectError, expectNotType, expectType } from 'tsd';
+import { expectError, expectType } from 'tsd';
 
 import type {
   ChangeStreamDocument,

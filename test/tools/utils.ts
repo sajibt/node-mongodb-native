@@ -2,17 +2,14 @@ import { EJSON } from 'bson';
 import { expect } from 'chai';
 import util from 'util';
 
-import { Document } from '../../src';
 import { Logger } from '../../src/logger';
 import { deprecateOptions, DeprecateOptionsConfig } from '../../src/utils';
-import { SpecialOperator } from './unified-spec-runner/match';
 import { runUnifiedSuite } from './unified-spec-runner/runner';
 import {
   CollectionData,
   EntityDescription,
   ExpectedEventsForClient,
   OperationDescription,
-  OperationName,
   RunOnRequirement,
   Test,
   UnifiedSuite
